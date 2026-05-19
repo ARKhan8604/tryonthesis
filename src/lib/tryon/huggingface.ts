@@ -33,16 +33,28 @@ export const huggingfaceProvider: TryOnProvider = {
     // Leffa /leffa_predict_vt signature (May 2026):
     // (src_image, ref_image, ref_acceleration, step, scale, seed,
     //  vt_model_type, vt_garment_type, vt_repaint)
+    //
+    // Param choices, tuned for desi full-length garments (saree, lehnga,
+    // anarkali — all floor-length):
+    //  - vt_model_type 'dress_code' (not 'viton_hd'): the DressCode dataset
+    //    contains full-body dresses, so the model knows how to extend a
+    //    garment all the way to the ankle/floor. viton_hd is trained on
+    //    cropped upper-body catalogue shots and produces mini-skirt-length
+    //    output for sarees.
+    //  - vt_repaint=true: keeps face, skin tone, hair and background pixels
+    //    from the source photo intact; only the garment region is repainted.
+    //  - step=50 (up from 30): better detail in the sequin / embroidery work
+    //    on traditional garments. Adds ~10-15s latency per request.
     const result = await client.predict('/leffa_predict_vt', [
       personBlob,
       garmentBlob,
       false, // ref_acceleration
-      30, // step
+      50, // step
       2.5, // scale
       42, // seed
-      'viton_hd', // vt_model_type
-      'dresses', // vt_garment_type — saree, lehnga, anarkali all map to dresses
-      false, // vt_repaint
+      'dress_code', // vt_model_type
+      'dresses', // vt_garment_type
+      true, // vt_repaint
     ]);
 
     const data = result.data as unknown;
