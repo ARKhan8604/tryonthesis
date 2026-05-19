@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gradio/client": "^2.2.0",
+    "browser-image-compression": "^2.0.2",
     "cloudinary": "^2.10.0",
     "iron-session": "^8.0.4",
     "next": "16.2.6",

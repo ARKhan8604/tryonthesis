@@ -1,5 +1,6 @@
 'use client';
 
+import imageCompression from 'browser-image-compression';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -15,11 +16,36 @@ export function NewClothingForm({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function onFile(f: File | null) {
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
+  async function onFile(f: File | null) {
+    setError(null);
+    if (!f) {
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+    setCompressing(true);
+    try {
+      // Catalog images can stay higher-res than try-on input photos —
+      // they're shown in the picker grid. Cap at 2 MB / 2048 px to fit
+      // Vercel's 4.5 MB body limit while keeping sharp thumbnails.
+      const compressed = await imageCompression(f, {
+        maxSizeMB: 2,
+        maxWidthOrHeight: 2048,
+        initialQuality: 0.9,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+      });
+      setFile(compressed);
+      setPreview(URL.createObjectURL(compressed));
+    } catch {
+      setFile(f);
+      setPreview(URL.createObjectURL(f));
+    } finally {
+      setCompressing(false);
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -110,10 +136,10 @@ export function NewClothingForm({
       <div className="flex gap-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || compressing}
           className="rounded-full bg-rose-700 px-6 py-3 text-sm font-semibold text-white hover:bg-rose-800 disabled:bg-stone-300"
         >
-          {pending ? 'Uploading…' : 'Add garment'}
+          {compressing ? 'Optimizing…' : pending ? 'Uploading…' : 'Add garment'}
         </button>
       </div>
 
