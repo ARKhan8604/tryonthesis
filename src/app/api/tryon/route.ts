@@ -17,8 +17,14 @@ export async function POST(req: NextRequest) {
 
   const hasUpload = photo instanceof File && photo.size > 0;
   if (!hasUpload && !modelId) {
+    // If the multipart body parsed but neither field is present, the most
+    // common cause is that the photo exceeded Vercel's 4.5 MB body cap and
+    // was silently dropped. Make that explicit.
     return NextResponse.json(
-      { error: 'either photo or modelId required' },
+      {
+        error:
+          'No photo or model received. If you uploaded a photo, it may have exceeded the 4.5 MB upload limit — the client should resize before sending. Try again, or pick a demo model instead.',
+      },
       { status: 400 },
     );
   }

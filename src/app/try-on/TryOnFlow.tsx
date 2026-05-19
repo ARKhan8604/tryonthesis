@@ -48,13 +48,24 @@ export function TryOnFlow({
     [clothes, category],
   );
 
-  function onPhotoSelected(file: File | null) {
+  async function onPhotoSelected(file: File | null) {
     setError(null);
     if (source?.kind === 'upload') URL.revokeObjectURL(source.previewUrl);
-    if (file) {
-      setSource({ kind: 'upload', file, previewUrl: URL.createObjectURL(file) });
-    } else {
+    if (!file) {
       setSource(null);
+      return;
+    }
+    try {
+      const resized = await resizeImage(file, 1280, 0.85);
+      setSource({
+        kind: 'upload',
+        file: resized,
+        previewUrl: URL.createObjectURL(resized),
+      });
+    } catch {
+      // Fall back to the original file if canvas/encoding hiccups —
+      // the upload may still succeed if it's small enough.
+      setSource({ kind: 'upload', file, previewUrl: URL.createObjectURL(file) });
     }
   }
 
@@ -300,6 +311,47 @@ export function TryOnFlow({
       )}
     </div>
   );
+}
+
+/**
+ * Resize and re-encode an uploaded photo client-side. Vercel's serverless
+ * functions cap request bodies at 4.5 MB on the free tier; a raw phone shot
+ * blows past that and gets silently dropped by the platform before our route
+ * sees it. Resizing to 1280px on the long edge typically produces a
+ * 200-400 KB JPEG, well under the cap.
+ */
+async function resizeImage(file: File, maxDim: number, quality: number): Promise<File> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('decode failed'));
+    el.src = dataUrl;
+  });
+
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas 2d unsupported');
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', quality);
+  });
+  if (!blob) throw new Error('encode failed');
+
+  const stem = file.name.replace(/\.[^.]+$/, '');
+  return new File([blob], `${stem}.jpg`, { type: 'image/jpeg' });
 }
 
 function Stepper({ step }: { step: Step }) {
