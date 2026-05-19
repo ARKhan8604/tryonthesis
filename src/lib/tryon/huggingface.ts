@@ -1,24 +1,42 @@
 import 'server-only';
 import { Client } from '@gradio/client';
+import type { Category } from '@/lib/categories';
 import type { TryOnInput, TryOnProvider, TryOnResult } from './types';
 
 /**
  * Calls a public Hugging Face Space (Gradio) virtual try-on endpoint.
  * Returns the HF-served URL of the generated image directly — we don't
- * re-upload it, since Vercel's filesystem is read-only and the user
- * picked "HF URLs directly" for the result-storage question.
+ * re-upload it, since Vercel's filesystem is read-only.
  *
- * Default Space: franciszzj/Leffa.
+ * Default Space: levihsu/OOTDiffusion. OOTDiffusion's DressCode model
+ * (`/process_dc`) is purpose-built for full-body dress try-on and handles
+ * source photos with separate-piece outfits (top + pants) more aggressively
+ * than Leffa — it replaces the whole body silhouette with the garment
+ * rather than swapping a single segmented region.
  *
  * Caveats:
- *  - Anonymous ZeroGPU quota is ~5 min/day. Set HF_TOKEN to lift it.
+ *  - Anonymous ZeroGPU quota is ~5 min/day per IP. Set HF_TOKEN to lift it.
  *  - Cold start ~30-60s.
- *  - The returned URL is hosted by HF and may not be permanent.
+ *  - Result URL is hosted by HF and may not be permanent.
  */
+
+// OOTDiffusion DressCode category enum (from the model's config):
+//   0 = upper-body
+//   1 = lower-body
+//   2 = dresses (full-body, single garment)
+function ootdCategoryFor(_cat: Category): number {
+  // All three desi categories (saree, lehnga choli, anarkali frock) are
+  // floor-length silhouettes — DressCode's "dresses" mode (2) is the
+  // right setting for all of them. Lehnga choli is two-piece IRL but the
+  // VTON model treats it as one full-body garment because the input photo
+  // shows it as a single visual unit.
+  return 2;
+}
+
 export const huggingfaceProvider: TryOnProvider = {
   name: 'huggingface',
   async generate(input: TryOnInput): Promise<TryOnResult> {
-    const spaceId = process.env.HF_SPACE_ID || 'franciszzj/Leffa';
+    const spaceId = process.env.HF_SPACE_ID || 'levihsu/OOTDiffusion';
     const hfToken = process.env.HF_TOKEN || undefined;
 
     const started = Date.now();
@@ -30,50 +48,64 @@ export const huggingfaceProvider: TryOnProvider = {
     const personBlob = new Blob([input.personBytes], { type: input.personMime });
     const garmentBlob = new Blob([input.garmentBytes], { type: input.garmentMime });
 
-    // Leffa /leffa_predict_vt signature (May 2026):
-    // (src_image, ref_image, ref_acceleration, step, scale, seed,
-    //  vt_model_type, vt_garment_type, vt_repaint)
+    // OOTDiffusion /process_dc signature (May 2026):
+    // (vton_img, garm_img, category, n_samples, n_steps, image_scale, seed)
     //
-    // Param choices, tuned for desi full-length garments (saree, lehnga,
-    // anarkali — all floor-length):
-    //  - vt_model_type 'dress_code' (not 'viton_hd'): the DressCode dataset
-    //    contains full-body dresses, so the model knows how to extend a
-    //    garment all the way to the ankle/floor. viton_hd is trained on
-    //    cropped upper-body catalogue shots and produces mini-skirt-length
-    //    output for sarees.
-    //  - vt_repaint=true: keeps face, skin tone, hair and background pixels
-    //    from the source photo intact; only the garment region is repainted.
-    //  - step=50 (up from 30): better detail in the sequin / embroidery work
-    //    on traditional garments. Adds ~10-15s latency per request.
-    const result = await client.predict('/leffa_predict_vt', [
+    // Param choices:
+    //  - category=2 ('dresses'): full-body single garment, the right mode
+    //    for sarees / lehngas / anarkalis. Forces the model to dress the
+    //    whole body silhouette in the garment rather than swap just the
+    //    top region.
+    //  - n_samples=1: one image out (we don't show a grid).
+    //  - n_steps=30: balanced quality/latency. 20 is the demo default;
+    //    50 is sharper but doubles the GPU time we eat from our quota.
+    //  - image_scale=2.0: classifier-free guidance scale. Default. Higher
+    //    values bias more toward the garment at the cost of pose accuracy.
+    //  - seed=-1: random seed each run so users can re-roll on bad output.
+    const result = await client.predict('/process_dc', [
       personBlob,
       garmentBlob,
-      false, // ref_acceleration
-      50, // step
-      2.5, // scale
-      42, // seed
-      'dress_code', // vt_model_type
-      'dresses', // vt_garment_type
-      true, // vt_repaint
+      2, // category
+      1, // n_samples
+      30, // n_steps
+      2.0, // image_scale
+      -1, // seed (-1 = random)
     ]);
 
     const data = result.data as unknown;
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Unexpected Gradio response shape');
     }
-    const first = data[0] as { url?: string; path?: string } | string;
+    // OOTDiffusion returns a gallery (array of items). Take the first.
+    const first = data[0];
+    let imageRef: { url?: string; path?: string; image?: { url?: string; path?: string } } | string | null = null;
+    if (Array.isArray(first) && first.length > 0) {
+      imageRef = first[0]?.image ?? first[0] ?? null;
+    } else {
+      imageRef = first ?? null;
+    }
+    if (!imageRef) throw new Error('Empty gallery in Gradio response');
+
     const imageUrl =
-      typeof first === 'string'
-        ? first
-        : first.url ??
-          (first.path
-            ? `https://${spaceId.replace('/', '-')}.hf.space/file=${first.path}`
-            : null);
+      typeof imageRef === 'string'
+        ? imageRef
+        : imageRef.url ??
+          imageRef.image?.url ??
+          (imageRef.path
+            ? `https://${spaceId.replace('/', '-')}.hf.space/file=${imageRef.path}`
+            : imageRef.image?.path
+              ? `https://${spaceId.replace('/', '-')}.hf.space/file=${imageRef.image.path}`
+              : null);
     if (!imageUrl) throw new Error('No image URL in Gradio response');
 
     return {
       resultImageUrl: imageUrl,
-      meta: { provider: 'huggingface', spaceId, latencyMs: Date.now() - started },
+      meta: {
+        provider: 'huggingface',
+        spaceId,
+        category: ootdCategoryFor(input.category),
+        latencyMs: Date.now() - started,
+      },
     };
   },
 };
