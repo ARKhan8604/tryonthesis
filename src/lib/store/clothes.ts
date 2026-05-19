@@ -123,8 +123,12 @@ async function listCloudinaryClothes(): Promise<Clothing[]> {
   if (!cloudinaryEnabled()) return [];
   try {
     const folder = cloudinaryFolder();
+    // Quote tag values containing colons — Cloudinary search expressions
+    // otherwise treat the colon as a field-separator and 400.
     const result = await cld()
-      .search.expression(`folder=${folder}/garments AND tags=${TAG_APP}`)
+      .search.expression(
+        `folder="${folder}/garments" AND tags="${TAG_APP}"`,
+      )
       .with_field('context')
       .with_field('tags')
       .sort_by('created_at', 'desc')
