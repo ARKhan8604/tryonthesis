@@ -36,6 +36,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Claude Code workspace config
+.claude/
+
+# Dev-only generated assets (these dirs were used by the old local-store
+# build; they no longer exist on Vercel-deployed instances)
+/public/results/
+/public/garments/uploaded/
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

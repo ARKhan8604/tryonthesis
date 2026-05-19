@@ -1,65 +1,95 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { CATEGORIES, CATEGORY_LABEL } from '@/lib/categories';
+
+const HERO_DESCRIPTIONS: Record<(typeof CATEGORIES)[number], string> = {
+  saree: 'Drape an embroidered saree without the studio appointment.',
+  lehnga_choli: 'See how the choli and flared skirt sit on you.',
+  anarkali: 'Try a flared anarkali frock against your own figure.',
+};
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="mx-auto max-w-6xl px-6 py-16">
+      <section className="grid gap-12 md:grid-cols-2 md:items-center">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-rose-700">
+            Virtual fitting room
           </p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
+            Try on desi clothes <br />without changing rooms.
+          </h1>
+          <p className="mt-5 max-w-md text-lg text-stone-600">
+            Upload a full-body photo, pick a saree, lehnga choli or anarkali frock,
+            and let our AI generate a fitted preview in seconds.
+          </p>
+          <div className="mt-8 flex gap-3">
+            <Link
+              href="/try-on"
+              className="rounded-full bg-rose-700 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-rose-800"
+            >
+              Start trying on
+            </Link>
+            <Link
+              href="#how-it-works"
+              className="rounded-full border border-stone-300 px-6 py-3 text-sm font-semibold text-stone-700 hover:border-stone-400"
+            >
+              How it works
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="rounded-3xl bg-gradient-to-br from-rose-100 via-amber-100 to-emerald-100 p-1">
+          <div className="rounded-[1.4rem] bg-white p-8">
+            <div className="grid grid-cols-3 gap-3">
+              {CATEGORIES.map((c) => (
+                <div
+                  key={c}
+                  className="aspect-[3/4] rounded-xl bg-gradient-to-br from-stone-100 to-stone-200 flex items-end p-3 text-xs font-medium text-stone-700"
+                >
+                  {CATEGORY_LABEL[c]}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </main>
+      </section>
+
+      <section id="how-it-works" className="mt-24">
+        <h2 className="text-2xl font-semibold tracking-tight">How it works</h2>
+        <ol className="mt-6 grid gap-6 md:grid-cols-3">
+          {[
+            { n: 1, t: 'Upload your photo', d: 'Full-body, plain background, arms slightly out. We’ll show a pose guide.' },
+            { n: 2, t: 'Pick an outfit', d: 'Browse our saree, lehnga and anarkali catalogue.' },
+            { n: 3, t: 'Get your try-on', d: 'AI generates a fitted preview you can save or share.' },
+          ].map((s) => (
+            <li key={s.n} className="rounded-2xl border border-stone-200 bg-white p-6">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-700 text-sm font-semibold text-white">
+                {s.n}
+              </div>
+              <h3 className="mt-4 font-semibold">{s.t}</h3>
+              <p className="mt-1 text-sm text-stone-600">{s.d}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="mt-24">
+        <h2 className="text-2xl font-semibold tracking-tight">Catalogue</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {CATEGORIES.map((c) => (
+            <Link
+              key={c}
+              href={`/try-on?category=${c}`}
+              className="group rounded-2xl border border-stone-200 bg-white p-6 hover:border-rose-400 hover:shadow-sm"
+            >
+              <h3 className="text-lg font-semibold">{CATEGORY_LABEL[c]}</h3>
+              <p className="mt-2 text-sm text-stone-600">{HERO_DESCRIPTIONS[c]}</p>
+              <p className="mt-6 text-sm font-medium text-rose-700 group-hover:underline">
+                Browse →
+              </p>
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
